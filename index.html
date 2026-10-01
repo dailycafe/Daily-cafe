@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Cafe • Stock Manager</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7f4f0;color:#29231f;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+header{background:#3f281d;color:#fff;padding:20px 16px 18px;position:sticky;top:0;z-index:5}
+.brand{max-width:900px;margin:auto;display:flex;justify-content:space-between;align-items:center}.brand h1{margin:0;font-size:25px}.brand small{opacity:.75}
+main{max-width:900px;margin:auto;padding:16px}.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:16px}.tab{border:0;background:#e8e0d9;padding:11px 15px;border-radius:12px;white-space:nowrap;font-weight:700}.tab.active{background:#3f281d;color:white}
+.page{display:none}.page.active{display:block}.datebar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:#fff;padding:15px;border-radius:15px;box-shadow:0 2px 10px #0000000c}.stat b{font-size:24px}.stat span{display:block;color:#777;font-size:12px;margin-top:3px}
+.card{background:#fff;border-radius:16px;padding:15px;margin:10px 0;box-shadow:0 2px 10px #0000000c}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-weight:800;font-size:16px}.sub{color:#777;font-size:12px;margin-top:3px}
+.controls{display:flex;align-items:center;gap:6px}.controls button,.iconbtn{border:0;border-radius:9px;background:#eee;width:34px;height:34px;font-size:19px}.qty{width:70px;padding:8px;border:1px solid #ddd;border-radius:9px;text-align:center;font-size:15px}
+.status{font-size:11px;font-weight:800;margin-top:10px}.ok{color:#16823b}.low{color:#b26b00}.out{color:#c5221f}.actions{display:flex;gap:9px;margin-top:15px}.actions button{flex:1;padding:13px;border:0;border-radius:12px;font-weight:800}.primary{background:#3f281d;color:#fff}.secondary{background:#e8e0d9}
+input,select{font:inherit;padding:11px;border:1px solid #ddd;border-radius:10px;background:#fff;width:100%}.form{display:grid;grid-template-columns:1fr 120px 120px;gap:8px}.search{margin-bottom:10px}
+.notice{padding:12px;border-radius:12px;background:#fff3d8;color:#8a5a00;margin:10px 0;font-size:13px}.historyItem{border-left:4px solid #3f281d;padding:10px 12px;background:#fff;margin:8px 0;border-radius:10px}.muted{color:#777;font-size:12px}
+@media(max-width:650px){.grid{grid-template-columns:1fr 1fr}.form{grid-template-columns:1fr 1fr}.form button{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header><div class="brand"><div><h1>☕ Daily Cafe</h1><small>Stock Management</small></div><div id="today"></div></div></header>
+<main>
+<div class="tabs">
+<button class="tab active" data-page="dashboard">Dashboard</button>
+<button class="tab" data-page="stock">Daily Stock</button>
+<button class="tab" data-page="history">History</button>
+<button class="tab" data-page="items">Items</button>
+</div>
+
+<section id="dashboard" class="page active">
+<div class="grid">
+<div class="stat"><b id="total">0</b><span>Total Items</span></div>
+<div class="stat"><b id="low">0</b><span>Low Stock</span></div>
+<div class="stat"><b id="out">0</b><span>Out of Stock</span></div>
+</div>
+<div id="alert"></div>
+<div class="card"><b>Today's Update</b><p class="muted">Update remaining quantities after work and save the day's stock.</p><button class="actions primary" onclick="go('stock')">Update Stock →</button></div>
+</section>
+
+<section id="stock" class="page">
+<div class="datebar"><b>Today's Stock</b><span class="muted" id="stockDate"></span></div>
+<input class="search" id="search" placeholder="🔎 Search item..." oninput="renderStock()">
+<div id="stockList"></div>
+<div class="actions"><button class="primary" onclick="saveToday()">✓ Save Today's Stock</button><button class="secondary" onclick="resetToday()">Reset</button></div>
+</section>
+
+<section id="history" class="page">
+<div class="datebar"><b>Saved History</b><button class="secondary" onclick="clearHistory()">Clear History</button></div>
+<div id="historyList"></div>
+</section>
+
+<section id="items" class="page">
+<div class="card"><b>Add New Item</b><div class="form" style="margin-top:10px">
+<input id="newName" placeholder="Item name"><input id="newQty" type="number" min="0" step=".5" placeholder="Qty"><input id="newUnit" placeholder="Unit">
+<button class="primary" onclick="addItem()">+ Add Item</button></div></div>
+<div id="itemManager"></div>
+</section>
+</main>
+
+<script>
+const defaults=[
+{name:"French Fries",qty:2.5,unit:"packet",extra:"5 nos"},
+{name:"Nuggets",qty:2,unit:"packet",extra:""},
+{name:"Pops",qty:3,unit:"packet",extra:""},
+{name:"Chicken Patty",qty:3,unit:"packet",extra:""},
+{name:"Veg Patty",qty:3,unit:"packet",extra:""},
+{name:"Momos",qty:5,unit:"packet",extra:""}];
+
+let items=JSON.parse(localStorage.getItem("dc_items")||"null")||defaults;
+const key=new Date().toISOString().slice(0,10);
+document.getElementById("today").textContent=new Date().toLocaleDateString(undefined,{day:"2-digit",month:"short"});
+document.getElementById("stockDate").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>go(b.dataset.page));
+function go(p){document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(p).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.page===p));if(p==="history")renderHistory();if(p==="items")renderItems();renderAll()}
+
+function saveItems(){localStorage.setItem("dc_items",JSON.stringify(items))}
+function state(q){return q===0?["out","OUT OF STOCK"]:q<=1?["low","LOW STOCK"]:["ok","IN STOCK"]}
+function renderStock(){
+ let s=(document.getElementById("search").value||"").toLowerCase();
+ document.getElementById("stockList").innerHTML=items.filter(x=>x.name.toLowerCase().includes(s)).map((x,i)=>{
+ let [cl,tx]=state(x.qty);
+ return `<div class="card"><div class="row"><div><div class="name">${x.name}</div><div class="sub">${x.unit}${x.extra?" • "+x.extra:""}</div></div>
+ <div class="controls"><button onclick="change(${i},-.5)">−</button><input class="qty" type="number" min="0" step=".5" value="${x.qty}" onchange="setQty(${i},this.value)"><button onclick="change(${i},.5)">+</button></div></div>
+ <div class="status ${cl}">${tx}</div></div>`}).join("")||'<div class="card">No items found.</div>';
+}
+function change(i,d){items[i].qty=Math.max(0,Math.round((items[i].qty+d)*2)/2);saveItems();renderAll()}
+function setQty(i,v){items[i].qty=Math.max(0,Number(v)||0);saveItems();renderAll()}
+function renderAll(){renderStock();let low=items.filter(x=>x.qty>0&&x.qty<=1).length,out=items.filter(x=>x.qty===0).length;document.getElementById("total").textContent=items.length;document.getElementById("low").textContent=low;document.getElementById("out").textContent=out;document.getElementById("alert").innerHTML=(low+out)?`<div class="notice">⚠️ ${low} low-stock and ${out} out-of-stock item(s) need attention.</div>`:""}
+function saveToday(){saveItems();let h=JSON.parse(localStorage.getItem("dc_history")||"[]");h=h.filter(x=>x.date!==key);h.unshift({date:key,items:JSON.parse(JSON.stringify(items))});localStorage.setItem("dc_history",JSON.stringify(h));alert("Today's stock saved ✓")}
+function renderHistory(){let h=JSON.parse(localStorage.getItem("dc_history")||"[]");document.getElementById("historyList").innerHTML=h.length?h.map(x=>`<div class="historyItem"><b>${x.date}</b><div class="muted">${x.items.map(i=>i.name+": "+i.qty+" "+i.unit).join(" • ")}</div></div>`).join(""):"<div class='card'>No saved days yet.</div>"}
+function clearHistory(){if(confirm("Clear all saved history?")){localStorage.removeItem("dc_history");renderHistory()}}
+function resetToday(){if(confirm("Reset today's quantities to the starting list?")){items=JSON.parse(JSON.stringify(defaults));saveItems();renderAll()}}
+function addItem(){let n=document.getElementById("newName").value.trim(),q=Number(document.getElementById("newQty").value)||0,u=document.getElementById("newUnit").value.trim()||"packet";if(!n)return alert("Enter item name");items.push({name:n,qty:q,unit:u,extra:""});saveItems();document.getElementById("newName").value="";document.getElementById("newQty").value="";document.getElementById("newUnit").value="";renderItems();renderAll()}
+function renderItems(){document.getElementById("itemManager").innerHTML=items.map((x,i)=>`<div class="card"><div class="row"><div><b>${x.name}</b><div class="muted">${x.unit}</div></div><button class="iconbtn" onclick="deleteItem(${i})">🗑️</button></div></div>`).join("")}
+function deleteItem(i){if(confirm("Remove "+items[i].name+"?")){items.splice(i,1);saveItems();renderItems();renderAll()}}
+renderAll();
+</script>
+</body></html>
