@@ -98,4 +98,33 @@ function renderItems(){document.getElementById("itemManager").innerHTML=items.ma
 function deleteItem(i){if(confirm("Remove "+items[i].name+"?")){items.splice(i,1);saveItems();renderItems();renderAll()}}
 renderAll();
 </script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDAN62n2m_hpzlVQ0yvTMfX13sHpibWGd4",
+  authDomain: "daily-cafe-f2d07.firebaseapp.com",
+  projectId: "daily-cafe-f2d07",
+  storageBucket: "daily-cafe-f2d07.firebasestorage.app",
+  messagingSenderId: "722886457899",
+  appId: "1:722886457899:web:2b4d661a712830c9d4c86e",
+  measurementId: "G-C78VG7WK3D"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+signInAnonymously(auth).then(async () => {
+  const ref = doc(db, "stock", "current");
+  const snap = await getDoc(ref);
+  window.dailyCafeFirebase = { db, ref, ready: true };
+  if (!snap.exists()) {
+    const saved = localStorage.getItem("dc_items");
+    if (saved) await setDoc(ref, {items: JSON.parse(saved), updatedAt: Date.now()});
+  }
+}).catch(console.error);
+</script>
 </body></html>
