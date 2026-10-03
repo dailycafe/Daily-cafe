@@ -128,8 +128,9 @@ window.dailyCafeCloudSaveToday = async (items, date) => {
 window.dailyCafeCloudLoad = async () => {
   const snap = await getDoc(doc(db, "stock", "current"));
   if (snap.exists() && Array.isArray(snap.data().items)) {
-    localStorage.setItem("dc_items", JSON.stringify(snap.data().items));
-    location.reload();
+    items = JSON.parse(JSON.stringify(snap.data().items));
+    saveItems();
+    renderAll();
   }
 };
 
@@ -138,8 +139,9 @@ try {
   window.dailyCafeCloudReady = true;
   const snap = await getDoc(doc(db, "stock", "current"));
   if (snap.exists() && Array.isArray(snap.data().items)) {
-    localStorage.setItem("dc_items", JSON.stringify(snap.data().items));
-    location.reload();
+    items = JSON.parse(JSON.stringify(snap.data().items));
+    saveItems();
+    renderAll();
   }
 } catch (e) {
   console.error("Firebase connection failed:", e);
