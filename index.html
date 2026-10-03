@@ -89,7 +89,7 @@ function renderStock(){
 function change(i,d){items[i].qty=Math.max(0,Math.round((items[i].qty+d)*2)/2);saveItems();renderAll()}
 function setQty(i,v){items[i].qty=Math.max(0,Number(v)||0);saveItems();renderAll()}
 function renderAll(){renderStock();let low=items.filter(x=>x.qty>0&&x.qty<=1).length,out=items.filter(x=>x.qty===0).length;document.getElementById("total").textContent=items.length;document.getElementById("low").textContent=low;document.getElementById("out").textContent=out;document.getElementById("alert").innerHTML=(low+out)?`<div class="notice">⚠️ ${low} low-stock and ${out} out-of-stock item(s) need attention.</div>`:""}
-function saveToday(){saveItems();let h=JSON.parse(localStorage.getItem("dc_history")||"[]");h=h.filter(x=>x.date!==key);h.unshift({date:key,items:JSON.parse(JSON.stringify(items))});localStorage.setItem("dc_history",JSON.stringify(h));alert("Today's stock saved ✓")}
+async function saveToday(){saveItems();let snapshot=JSON.parse(JSON.stringify(items));let h=JSON.parse(localStorage.getItem("dc_history")||"[]");h=h.filter(x=>x.date!==key);h.unshift({date:key,items:snapshot});localStorage.setItem("dc_history",JSON.stringify(h));try{if(window.dailyCafeCloudSaveToday)await window.dailyCafeCloudSaveToday(snapshot,key);alert("Today's stock saved ✓");}catch(e){console.error(e);alert("Saved on this device ✓ (cloud sync failed)");}}
 function renderHistory(){let h=JSON.parse(localStorage.getItem("dc_history")||"[]");document.getElementById("historyList").innerHTML=h.length?h.map(x=>`<div class="historyItem"><b>${x.date}</b><div class="muted">${x.items.map(i=>i.name+": "+i.qty+" "+i.unit).join(" • ")}</div></div>`).join(""):"<div class='card'>No saved days yet.</div>"}
 function clearHistory(){if(confirm("Clear all saved history?")){localStorage.removeItem("dc_history");renderHistory()}}
 function resetToday(){if(confirm("Reset today's quantities to the starting list?")){items=JSON.parse(JSON.stringify(defaults));saveItems();renderAll()}}
@@ -98,10 +98,11 @@ function renderItems(){document.getElementById("itemManager").innerHTML=items.ma
 function deleteItem(i){if(confirm("Remove "+items[i].name+"?")){items.splice(i,1);saveItems();renderItems();renderAll()}}
 renderAll();
 </script>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDAN62n2m_hpzlVQ0yvTMfX13sHpibWGd4",
@@ -117,14 +118,31 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-signInAnonymously(auth).then(async () => {
-  const ref = doc(db, "stock", "current");
-  const snap = await getDoc(ref);
-  window.dailyCafeFirebase = { db, ref, ready: true };
-  if (!snap.exists()) {
-    const saved = localStorage.getItem("dc_items");
-    if (saved) await setDoc(ref, {items: JSON.parse(saved), updatedAt: Date.now()});
+window.dailyCafeCloudReady = false;
+
+window.dailyCafeCloudSaveToday = async (items, date) => {
+  await setDoc(doc(db, "stock", "current"), {items, updatedAt: Date.now()});
+  await setDoc(doc(db, "history", date), {date, items, savedAt: Date.now()});
+};
+
+window.dailyCafeCloudLoad = async () => {
+  const snap = await getDoc(doc(db, "stock", "current"));
+  if (snap.exists() && Array.isArray(snap.data().items)) {
+    localStorage.setItem("dc_items", JSON.stringify(snap.data().items));
+    location.reload();
   }
-}).catch(console.error);
+};
+
+try {
+  await signInAnonymously(auth);
+  window.dailyCafeCloudReady = true;
+  const snap = await getDoc(doc(db, "stock", "current"));
+  if (snap.exists() && Array.isArray(snap.data().items)) {
+    localStorage.setItem("dc_items", JSON.stringify(snap.data().items));
+    location.reload();
+  }
+} catch (e) {
+  console.error("Firebase connection failed:", e);
+}
 </script>
 </body></html>
